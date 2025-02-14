@@ -19,7 +19,8 @@ Este proyecto tiene como objetivo analizar datos de entregas a domicilio, evalua
 - **Python**  
 - **Pandas** - Análisis y manipulación de datos.  
 - **NumPy** - Cálculos matemáticos y estadísticas.  
-- **Plotly** - Visualización interactiva de datos.  
+- **Plotly** - Visualización interactiva de datos.
+- **Scikit-learn**
 
 ---
 
