@@ -5,6 +5,7 @@ import random
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
+from dash import Dash, dcc, html, Input, Output
 
 def generar_datos_entregas(n_entregas=1000):
     """
@@ -110,63 +111,106 @@ def analizar_datos_logisticos(df):
         'metricas_eficiencia': metricas_eficiencia
     }
 
-def crear_dashboard_entregas(df):
-    """
-    Crea un dashboard interactivo para visualizar los datos de entrega
-    """
+def crear_dashboard_entregas(df, modelo):
     import plotly.express as px
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    
-    # Crear figura con subplots
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=('Tiempo Promedio por Zona', 'Costos por Zona',
-                       'Tendencia Temporal', 'Distribución de Estados'),
-        specs=[[{'type': 'xy'}, {'type': 'xy'}],
-               [{'type': 'xy'}, {'type': 'domain'}]]
+    from dash import Dash, dcc, html, Input, Output
+
+    # Crear la aplicación Dash
+    app = Dash(__name__)
+
+    # Layout de la aplicación
+    app.layout = html.Div([
+        html.H1("Dashboard de Análisis Logístico"),
+        dcc.Graph(id='dashboard-graph'),
+        html.Div([
+            html.Label('Distancia (km):'),
+            dcc.Input(id='input-distancia', type='number', value=5),
+            html.Label('Zona:'),
+            dcc.Dropdown(
+                id='input-zona',
+                options=[{'label': zona, 'value': zona} for zona in ['Norte', 'Sur', 'Este', 'Oeste', 'Centro']],
+                value='Oeste'
+            ),
+            html.Button('Predecir', id='predict-button', n_clicks=0),
+            html.Div(id='prediction-output')
+        ]),
+              """
+                html.Div([
+            html.H3("Error Cuadrático Medio del Modelo:"),
+            html.Div(id='mse-output', children=f"{mse:.2f}")
+        ]) """
+    ])
+
+    @app.callback(
+        Output('dashboard-graph', 'figure'),
+        Input('input-distancia', 'value'),
+        Input('input-zona', 'value')
     )
-    
-    # 1. Tiempo promedio por zona
-    tiempos_zona = df.groupby('zona')['tiempo_real_min'].mean()
-    fig.add_trace(
-        go.Bar(x=tiempos_zona.index, y=tiempos_zona.values,
-               name='Tiempo Promedio'),
-        row=1, col=1
+    def update_graph(distancia, zona):
+        # Crear figura con subplots
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=('Tiempo Promedio por Zona', 'Costos por Zona',
+                            'Tendencia Temporal', 'Distribución de Estados'),
+            specs=[[{'type': 'xy'}, {'type': 'xy'}],
+                   [{'type': 'xy'}, {'type': 'domain'}]]
+        )
+
+        # 1. Tiempo promedio por zona
+        tiempos_zona = df.groupby('zona')['tiempo_real_min'].mean()
+        fig.add_trace(
+            go.Bar(x=tiempos_zona.index, y=tiempos_zona.values,
+                   name='Tiempo Promedio'),
+            row=1, col=1
+        )
+
+        # 2. Costos por zona
+        costos_zona = df.groupby('zona')['costo_total'].mean()
+        fig.add_trace(
+            go.Bar(x=costos_zona.index, y=costos_zona.values,
+                   name='Costo Promedio'),
+            row=1, col=2
+        )
+
+        # 3. Tendencia temporal
+        df['semana'] = df['fecha'].dt.isocalendar().week
+        tendencia = df.groupby('semana')['tiempo_real_min'].mean()
+        fig.add_trace(
+            go.Scatter(x=tendencia.index, y=tendencia.values,
+                       mode='lines+markers', name='Tendencia Temporal'),
+            row=2, col=1
+        )
+
+        # 4. Distribución de estados
+        estados_count = df['estado'].value_counts()
+        fig.add_trace(
+            go.Pie(labels=estados_count.index, values=estados_count.values,
+                   name='Estados'),
+            row=2, col=2
+        )
+
+        # Actualizar diseño
+        fig.update_layout(height=800, showlegend=True,
+                          title_text="Dashboard de Análisis Logístico")
+
+        return fig
+
+    @app.callback(
+        Output('prediction-output', 'children'),
+        Input('predict-button', 'n_clicks'),
+        Input('input-distancia', 'value'),
+        Input('input-zona', 'value'),
     )
-    
-    # 2. Costos por zona
-    costos_zona = df.groupby('zona')['costo_total'].mean()
-    fig.add_trace(
-        go.Bar(x=costos_zona.index, y=costos_zona.values,
-               name='Costo Promedio'),
-        row=1, col=2
-    )
-    
-    # 3. Tendencia temporal
-    df['semana'] = df['fecha'].dt.isocalendar().week
-    tendencia = df.groupby('semana')['tiempo_real_min'].mean()
-    fig.add_trace(
-        go.Scatter(x=tendencia.index, y=tendencia.values,
-                  mode='lines+markers', name='Tendencia Temporal'),
-        row=2, col=1
-    )
-    
-    # 4. Distribución de estados
-    estados_count = df['estado'].value_counts()
-    fig.add_trace(
-        go.Pie(labels=estados_count.index, values=estados_count.values,
-               name='Estados'),
-        row=2, col=2
-    )
-    
-    # Actualizar diseño
-    fig.update_layout(height=800, showlegend=True,
-                     title_text="Dashboard de Análisis Logístico")
-    
-    
-    
-    return fig
+    def update_prediction(n_clicks, distancia, zona):
+        if n_clicks > 0:
+            tiempo_predicho = predecir_tiempo_entrega(modelo, distancia, zona)
+            return f"Tiempo de entrega predicho para {distancia} km en la zona {zona}: {tiempo_predicho:.2f} minutos"
+        return ""
+
+    # Ejecutar la aplicación
+    app.run_server(debug=True)
 
 def entrenar_modelo_prediccion(df):
     """
@@ -221,18 +265,23 @@ def predecir_tiempo_entrega(modelo, distancia, zona):
 
 # Ejemplo de uso
 if __name__ == "__main__":
+    
     # Generar datos
     df_entregas = generar_datos_entregas(1000)
     
     # Realizar análisis
     resultados = analizar_datos_logisticos(df_entregas)
-    
-    # Crear visualización
-    dashboard = crear_dashboard_entregas(df_entregas)
-    dashboard.show()
-    
     # Entrenar modelo de predicción
     modelo = entrenar_modelo_prediccion(df_entregas)
+
+    """
+    mse = mean_squared_error(df_entregas['tiempo_real_min'],modelo.predict(df_entregas[['distancia_km'] + [col for col in df_entregas.columns if col.startswith('zona_')]]))
+    """
+    # Crear visualización
+    dashboard = crear_dashboard_entregas(df_entregas, modelo)
+    dashboard.show()
+    
+    
     
     # Predecir tiempo de entrega para un ejemplo
     distancia = 5  # km
