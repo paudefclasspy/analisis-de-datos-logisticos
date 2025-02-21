@@ -10,15 +10,15 @@ from dash import Dash, dcc, html, Input, Output
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-def generar_datos_entregas(n_entregas=1000):
+def generar_datos_entregas(n_entregas=5000):
     fecha_base = datetime(2024, 1, 1)
     zonas = ['Norte', 'Sur', 'Este', 'Oeste', 'Centro']
     distancias_zona = {
-        'Norte': (5, 15),
-        'Sur': (5, 12),
-        'Este': (5, 18),
-        'Oeste': (5, 16),
-        'Centro': (5, 8)
+        'Norte': (1, 40),
+        'Sur': (1, 60),
+        'Este': (1, 60),
+        'Oeste': (1, 40),
+        'Centro': (1, 20)
     }
     datos = []
     for _ in range(n_entregas):
@@ -129,6 +129,6 @@ def crear_dashboard(df, modelo, mse):
     app.run_server(debug=True)
 
 if __name__ == "__main__":
-    df_entregas = generar_datos_entregas(1000)
+    df_entregas = generar_datos_entregas(5000)
     modelo, mse = optimizar_modelo(df_entregas)
     crear_dashboard(df_entregas, modelo, mse)
